@@ -30,6 +30,14 @@ export default function Confessions({ session }) {
 
   // anon token
   const [tok, setTok] = useState(null)
+  const [myHash, setMyHash] = useState(null)
+
+  useEffect(() => {
+    (async () => {
+      if (tok?.token) setMyHash(await sha256(tok.token))
+      else setMyHash(null)
+    })()
+  }, [tok])
 
   // threads
   const [openId, setOpenId] = useState(null)
@@ -43,6 +51,21 @@ export default function Confessions({ session }) {
       catch (e) { console.error('confess-issue token error:', e) }
     })()
   }, [session])
+
+    // compute myHash once token is ready
+  useEffect(() => {
+    (async () => {
+      if (tok?.token) {
+        try {
+          setMyHash(await sha256(tok.token))
+        } catch (e) {
+          console.error('hash error', e)
+        }
+      } else {
+        setMyHash(null)
+      }
+    })()
+  }, [tok])
 
   // focus modal textarea on open (non-iOS)
   useEffect(() => {
@@ -122,6 +145,42 @@ export default function Confessions({ session }) {
     if (!error) setMsg('Flagged. Thanks for helping moderate.')
   }
 
+  async function deletePost(postId) {
+    if (!tok?.token) return
+    try {
+      const res = await fetch(`${import.meta.env.VITE_EDGE_BASE}/conf-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject_type: 'post', id: postId, token: tok.token })
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error || 'Delete failed')
+      await load() // refresh feed
+    } catch (e) {
+      alert(e.message || 'Failed to delete')
+    }
+  }
+
+  async function deleteComment(commentId, postId) {
+    if (!tok?.token) return
+    try {
+      const res = await fetch(`${import.meta.env.VITE_EDGE_BASE}/conf-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject_type: 'comment', id: commentId, token: tok.token })
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error || 'Delete failed')
+      // remove from local state without reloading whole feed
+      setComments(c => {
+        const arr = (c[postId] || []).filter(x => x.id !== commentId)
+        return { ...c, [postId]: arr }
+      })
+    } catch (e) {
+      alert(e.message || 'Failed to delete')
+    }
+  }
+  
   async function openThread(post) {
     setOpenId(prev => prev === post.id ? null : post.id)
     if (!comments[post.id]) {
@@ -198,7 +257,7 @@ export default function Confessions({ session }) {
       <ul className="grid gap-3">
         {feed.map(p => {
           const isOpen = openId === p.id
-          const threadAlias = aliasFromHash(p.token_hash + ':' + p.id)
+          const threadAlias = aliasFromHash(p.token_hash)
           const count = comments[p.id]?.length
           return (
             <li key={p.id} className="border rounded p-3 bg-white dark:bg-gray-800 dark:border-gray-700">
@@ -213,6 +272,16 @@ export default function Confessions({ session }) {
                 <button onClick={()=>vote(p, -1)} className="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Downvote">👎</button>
                 <button onClick={()=>flag(p)}     className="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Report">🚩</button>
 
+                {myHash && myHash === p.token_hash && (
+                  <button 
+                    onClick={() => deletePost(p.id)} 
+                    className="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="Delete your post"
+                  >
+                    🗑️ Delete
+                  </button>
+                )}
+
                 <button onClick={()=>openThread(p)}
                   className="ml-auto px-3 py-1 rounded border hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700">
                   {isOpen ? 'Hide comments' : `View comments${typeof count==='number' ? ` (${count})` : ''}`}
@@ -224,8 +293,17 @@ export default function Confessions({ session }) {
                   <div className="space-y-2">
                     {(comments[p.id] || []).map(c => (
                       <div key={c.id} className="text-sm">
-                        <div className="text-[11px] text-gray-500 dark:text-gray-300">
-                          {new Date(c.created_at).toLocaleString()} • {aliasFromHash(c.token_hash + ':' + c.post_id)}
+                        <div className="text-[11px] text-gray-500 dark:text-gray-300 flex items-center gap-2">
+                          {new Date(c.created_at).toLocaleString()} • {aliasFromHash(c.token_hash)}
+                          {myHash && myHash === c.token_hash && (
+                            <button
+                              onClick={() => deleteComment(c.id, p.id)}
+                              className="ml-1 px-1 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                              title="Delete your comment"
+                            >
+                              🗑️
+                            </button>
+                          )}
                         </div>
                         <div className="whitespace-pre-wrap">{c.body}</div>
                       </div>
