@@ -225,17 +225,17 @@ export default function Profile({ user }) {
       <section className="mt-6 rounded-xl border bg-white dark:bg-gray-800 dark:border-gray-700 p-6">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">My listings</h2>
-        <div className="ml-auto flex gap-2 text-sm">
-          {['all','active','hidden','sold'].map(s => (
+        <div className="flex flex-wrap gap-2">
+          {['All', 'Active', 'Hidden', 'Sold'].map((f) => (
             <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`px-3 py-1 rounded border transition-colors
-                ${filter===s
-                  ? 'bg-gray-900 text-white border-transparent'
-                  : 'bg-white text-gray-800 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:border-gray-600'}`}
+              key={f}
+              onClick={() => setStatusFilter(f.toLowerCase())}
+              className={`px-3 py-1 rounded border
+                ${statusFilter === f.toLowerCase()
+                  ? 'bg-gray-900 text-white dark:bg-blue-600 dark:text-white border-transparent'
+                  : 'bg-white text-gray-800 hover:bg-gray-100 border-gray-300 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:border-gray-600'}`}
             >
-              {s[0].toUpperCase() + s.slice(1)}
+              {f}
             </button>
           ))}
         </div>
