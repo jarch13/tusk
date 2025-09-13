@@ -24,17 +24,11 @@ export default function Profile({ user }) {
   const [loadingListings, setLoadingListings] = useState(true)
   const [listings, setListings] = useState([])
   const [filter, setFilter] = useState('all') // all | active | hidden | sold
+
   const filtered = useMemo(() => {
     if (filter === 'all') return listings
     return listings.filter(l => l.status === filter)
   }, [listings, filter])
-
-  // ---- Feedback state ----
-  const [fbCat, setFbCat] = useState('bug')      // bug | idea | abuse | other
-  const [fbMsg, setFbMsg] = useState('')
-  const [fbAnon, setFbAnon] = useState(true)
-  const [fbSending, setFbSending] = useState(false)
-  const [fbNote, setFbNote] = useState('')
 
   // ---------- Loaders ----------
   async function loadProfile() {
@@ -134,32 +128,6 @@ export default function Profile({ user }) {
     }
   }
 
-  // ---------- Feedback actions ----------
-  async function submitFeedback(e) {
-    e.preventDefault()
-    setFbSending(true); setFbNote('')
-    try {
-      const payload = {
-        category: fbCat,
-        message: fbMsg.trim(),
-        path: window.location.pathname,
-        user_agent: navigator.userAgent,
-        is_anonymous: fbAnon,
-        user_id: fbAnon ? null : user.id,
-        email: fbAnon ? null : user.email
-      }
-      if (!payload.message) throw new Error('Please add a message.')
-      const { error } = await supabase.from('feedback').insert([payload])
-      if (error) throw error
-      setFbMsg(''); setFbCat('bug'); setFbAnon(true)
-      setFbNote('Thanks! We received your feedback.')
-    } catch (e) {
-      setFbNote(e.message || 'Failed to send feedback.')
-    } finally {
-      setFbSending(false)
-    }
-  }
-
   return (
     <div className="max-w-3xl mx-auto p-4">
       {/* Profile card */}
@@ -225,20 +193,24 @@ export default function Profile({ user }) {
       <section className="mt-6 rounded-xl border bg-white dark:bg-gray-800 dark:border-gray-700 p-6">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">My listings</h2>
-        <div className="flex flex-wrap gap-2">
-          {['All', 'Active', 'Hidden', 'Sold'].map((f) => (
-            <button
-              key={f}
-              onClick={() => setStatusFilter(f.toLowerCase())}
-              className={`px-3 py-1 rounded border
-                ${statusFilter === f.toLowerCase()
-                  ? 'bg-gray-900 text-white dark:bg-blue-600 dark:text-white border-transparent'
-                  : 'bg-white text-gray-800 hover:bg-gray-100 border-gray-300 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:border-gray-600'}`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
+
+          {/* Mobile: horizontal scroll; Desktop: wraps */}
+          <div className="ml-auto -mx-4 px-4 overflow-x-auto md:overflow-visible">
+            <div className="inline-flex gap-2 w-max md:w-auto md:flex md:flex-wrap text-sm">
+              {['all','active','hidden','sold'].map(s => (
+                <button
+                  key={s}
+                  onClick={() => setFilter(s)}
+                  className={`flex-none whitespace-nowrap px-3 py-1 rounded border transition-colors
+                    ${filter===s
+                      ? 'bg-gray-900 text-white dark:bg-blue-600 dark:text-white border-transparent'
+                      : 'bg-white text-gray-800 hover:bg-gray-100 border-gray-300 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:border-gray-600'}`}
+                >
+                  {s[0].toUpperCase() + s.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {loadingListings ? (
@@ -320,69 +292,6 @@ export default function Profile({ user }) {
             ))}
           </ul>
         )}
-      </section>
-
-      {/* Feedback */}
-      <section className="mt-6 rounded-xl border bg-white dark:bg-gray-800 dark:border-gray-700 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-          Found a bug, have an idea, or need to report abuse? Send it here.
-        </p>
-
-        <form onSubmit={submitFeedback} className="mt-3 grid gap-3">
-          <div className="flex flex-wrap gap-3 items-center">
-            <label className="text-sm text-gray-700 dark:text-gray-200">
-              Category
-              <select
-                value={fbCat}
-                onChange={(e)=>setFbCat(e.target.value)}
-                className="ml-2 border px-3 py-2 rounded
-                           border-gray-300 dark:border-gray-700
-                           bg-white dark:bg-gray-900
-                           text-gray-900 dark:text-gray-100"
-              >
-                <option value="bug">Bug</option>
-                <option value="idea">Idea</option>
-                <option value="abuse">Abuse</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
-
-            <label className="ml-auto flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-              <input type="checkbox" checked={fbAnon} onChange={(e)=>setFbAnon(e.target.checked)} />
-              Send anonymously
-            </label>
-          </div>
-
-          <textarea
-            className="border p-2 rounded min-h-28
-                       border-gray-300 dark:border-gray-700
-                       bg-white dark:bg-gray-900
-                       text-gray-900 dark:text-gray-100"
-            placeholder="Describe the issue or suggestion…"
-            value={fbMsg}
-            onChange={(e)=>setFbMsg(e.target.value)}
-            maxLength={2000}
-            required
-          />
-
-          {!fbAnon && (
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              This submission will be tied to your account <span className="font-mono">{user.email}</span>.
-            </p>
-          )}
-
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              disabled={fbSending}
-              className={`px-4 py-2 rounded text-white ${fbSending ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'}`}
-            >
-              {fbSending ? 'Sending…' : 'Send feedback'}
-            </button>
-            {fbNote && <span className="text-sm text-gray-700 dark:text-gray-300">{fbNote}</span>}
-          </div>
-        </form>
       </section>
     </div>
   )
